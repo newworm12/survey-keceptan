@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Survey Kecepatan</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+body{
+  font-family:'Courier New',Courier,monospace;
+  background:#0a0a0a;
+  color:#e8e8e0;
+  min-height:100vh;
+}
+
+.wrapper{
+  max-width:400px;
+  margin:auto;
+  padding:16px;
+}
+
+/* ── HEADER ── */
+.app-header{
+  text-align:center;
+  padding:20px 0 14px;
+  border-bottom:1px solid #2a2a2a;
+  margin-bottom:16px;
+}
+.app-header h1{
+  font-size:13px;
+  letter-spacing:.25em;
+  text-transform:uppercase;
+  color:#6ee7b7;
+  font-weight:400;
+}
+.app-header p{
+  font-size:10px;
+  color:#444;
+  letter-spacing:.15em;
+  margin-top:4px;
+}
+
+/* ── PANEL ── */
+.panel{
+  background:#111;
+  border:1px solid #222;
+  border-radius:4px;
+  padding:14px;
+  margin-bottom:12px;
+  transition:border-color .3s;
+}
+.panel.active{border-color:#6ee7b7}
+.panel.danger{border-color:#f87171}
+
+.panel-label{
+  font-size:9px;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  color:#444;
+  margin-bottom:10px;
+}
+
+/* ── INPUTS ── */
+input,select{
+  width:100%;
+  height:40px;
+  background:#0a0a0a;
+  border:1px solid #2a2a2a;
+  border-radius:3px;
+  color:#e8e8e0;
+  padding:0 10px;
+  font-family:inherit;
+  font-size:13px;
+  margin-bottom:8px;
+  transition:border-color .2s;
+  outline:none;
+}
+input:focus,select:focus{border-color:#6ee7b7}
+input::placeholder{color:#333}
+select option{background:#111}
+
+.input-wrap{position:relative}
+.input-wrap input{padding-right:36px}
+.input-unit{
+  position:absolute;right:10px;top:50%;
+  transform:translateY(-50%);
+  font-size:10px;color:#444;
+  pointer-events:none;
+}
+
+/* ── BUTTONS ── */
+button{
+  width:100%;
+  height:42px;
+  border:none;
+  border-radius:3px;
+  font-family:inherit;
+  font-size:12px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  cursor:pointer;
+  font-weight:700;
+  transition:opacity .15s, transform .1s;
+  margin-bottom:8px;
+}
+button:active{transform:scale(.98)}
+button:disabled{opacity:.25;pointer-events:none}
+
+.btn-create{background:#6ee7b7;color:#0a0a0a}
+.btn-join{background:#1a1a1a;color:#6ee7b7;border:1px solid #6ee7b7}
+.btn-start{background:#6ee7b7;color:#0a0a0a}
+.btn-stop{background:#f87171;color:#fff}
+.btn-cancel{background:#1a1a1a;color:#888;border:1px solid #2a2a2a;font-size:10px}
+.btn-reset{background:#1a1a1a;color:#f59e0b;border:1px solid #f59e0b}
+
+/* ── STOPWATCH ── */
+.sw-panel{
+  text-align:center;
+  padding:24px 16px;
+}
+.sw-time{
+  font-size:56px;
+  font-weight:700;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em;
+  color:#e8e8e0;
+  line-height:1;
+  margin-bottom:6px;
+  font-family:'Courier New',monospace;
+}
+.sw-speed{
+  font-size:22px;
+  color:#6ee7b7;
+  margin-bottom:20px;
+  font-variant-numeric:tabular-nums;
+}
+.sw-status{
+  font-size:10px;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  color:#444;
+  margin-bottom:4px;
+}
+.sw-vehicle{
+  font-size:11px;
+  color:#555;
+  margin-bottom:16px;
+  min-height:16px;
+}
+
+/* Dot status indicator */
+.status-dot{
+  display:inline-block;
+  width:6px;height:6px;
+  border-radius:50%;
+  background:#333;
+  margin-right:6px;
+  vertical-align:middle;
+  transition:background .3s;
+}
+.status-dot.idle{background:#444}
+.status-dot.running{background:#6ee7b7;animation:pulse 1s infinite}
+.status-dot.stopped{background:#f87171}
+
+@keyframes pulse{
+  0%,100%{opacity:1}50%{opacity:.3}
+}
+
+/* ── SESSION CODE ── */
+.session-code{
+  font-size:11px;
+  color:#6ee7b7;
+  letter-spacing:.15em;
+  padding:8px 10px;
+  background:#0d1f18;
+  border:1px solid #1a3028;
+  border-radius:3px;
+  margin-top:8px;
+  display:none;
+}
+
+/* ── LOCKED STATE ── */
+.locked{opacity:.3;pointer-events:none}
+
+/* ── FOOTER ── */
+.app-credit{
+  text-align:center;
+  padding:20px 0 10px;
+  font-size:9px;
+  color:#222;
+  letter-spacing:.2em;
+}
+
+/* ── DIVIDER ── */
+.divider{
+  border:none;
+  border-top:1px solid #1a1a1a;
+  margin:12px 0;
+}
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <div class="app-header">
+    <h1>Speed Survey</h1>
+    <p>Traffic Speed Measurement Tool</p>
+  </div>
+
+  <!-- Surveyor -->
+  <div class="panel">
+    <div class="panel-label">Surveyor</div>
+    <input id="surveyor" type="text" placeholder="Nama Surveyor">
+  </div>
+
+  <!-- Config -->
+  <div id="controlBar" class="panel">
+    <div class="panel-label">Konfigurasi</div>
+
+    <div class="input-wrap">
+      <input id="distance" type="number" value="50" min="1">
+      <span class="input-unit">m</span>
+    </div>
+
+    <select id="role">
+      <option value="A">Petugas A — START</option>
+      <option value="B">Petugas B — STOP</option>
+    </select>
+
+    <select id="vehicleType">
+      <option value="">Pilih Jenis Kendaraan</option>
+      <option value="SM">SM – Sepeda Motor</option>
+      <option value="MP">MP – Mobil Penumpang</option>
+      <option value="KS">KS – Kendaraan Sedang</option>
+      <option value="BB">BB – Bus Besar</option>
+      <option value="TB">TB – Truk Besar</option>
+      <option value="KTB">KTB – Kendaraan Tak Bermotor</option>
+    </select>
+
+    <!-- Area A -->
+    <div id="areaA">
+      <button class="btn-create" onclick="createSession()">Buat Session</button>
+      <div class="session-code" id="sessionCode"></div>
+    </div>
+
+    <!-- Area B -->
+    <div id="areaB" style="display:none">
+      <input id="joinInput" placeholder="Masukkan Session ID">
+      <button class="btn-join" onclick="joinSession()">Gabung Session</button>
+    </div>
+  </div>
+
+  <!-- Stopwatch -->
+  <div id="stopwatch" class="panel sw-panel locked">
+    <div class="sw-status">
+      <span class="status-dot idle" id="statusDot"></span>
+      <span id="statusText">IDLE</span>
+    </div>
+    <div class="sw-vehicle" id="vehicleInfo">—</div>
+
+    <div class="sw-time" id="time">0.000</div>
+    <div class="sw-speed" id="speed">— km/jam</div>
+
+    <button id="btnStart" class="btn-start" onclick="start()">▶ START</button>
+    <button id="btnStop" class="btn-stop" onclick="stop()" disabled>■ STOP</button>
+    <hr class="divider">
+    <button id="btnCancel" class="btn-cancel" onclick="cancelLast()">✕ Batalkan Data Terakhir</button>
+  </div>
+
+  <button onclick="resetSession()" class="btn-reset">↺ Reset Session</button>
+
+  <div class="app-credit">WEB created by N4yr4</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbxXxGzlWxo-uLR5pSIXy6QGCPOBhC3yVLFcY1ue5uVplgazhm7BXMge5jwkORsRhSw/exec";
+
+firebase.initializeApp({
+  apiKey: "AIzaSyBbsJPQtHknhrmE9naA31l9uBC2Sb4XYL8",
+  databaseURL: "https://stopwatch-survey-default-rtdb.asia-southeast1.firebasedatabase.app"
+});
+
+const db = firebase.database();
+
+// ── STATE ──
+let sessionId        = null;
+let localStartTime   = 0;
+let timer            = null;
+let timerRunning     = false;
+let lastRecordId     = null;
+let sessionListener  = null;
+let lastStartTimeSeen= 0;
+
+// ── ELEMENTS ──
+const btnStart     = document.getElementById("btnStart");
+const btnStop      = document.getElementById("btnStop");
+const vehicleSelect= document.getElementById("vehicleType");
+const vehicleInfo  = document.getElementById("vehicleInfo");
+const roleEl       = document.getElementById("role");
+const areaA        = document.getElementById("areaA");
+const areaB        = document.getElementById("areaB");
+const controlBar   = document.getElementById("controlBar");
+const stopwatch    = document.getElementById("stopwatch");
+const timeEl       = document.getElementById("time");
+const speedEl      = document.getElementById("speed");
+const statusText   = document.getElementById("statusText");
+const statusDot    = document.getElementById("statusDot");
+const surveyorInput= document.getElementById("surveyor");
+const distanceEl   = document.getElementById("distance");
+
+// ── LOAD SAVED SURVEYOR ──
+surveyorInput.value = localStorage.getItem("surveyor") || "";
+surveyorInput.addEventListener("input", () => {
+  localStorage.setItem("surveyor", surveyorInput.value.trim());
+  updateStartState();
+});
+
+// ── UPDATE STATUS DOT ──
+function setStatus(s) {
+  statusText.textContent = s;
+  statusDot.className = "status-dot " + s.toLowerCase();
+}
+
+// ── ENABLE/DISABLE START BUTTON ──
+function updateStartState() {
+  btnStart.disabled =
+    roleEl.value !== "A" ||
+    !surveyorInput.value.trim() ||
+    !vehicleSelect.value ||
+    !sessionId;
+}
+vehicleSelect.addEventListener("change", () => {
+  updateStartState();
+  if (roleEl.value !== "A" || !sessionId) return;
+  db.ref("sessions/" + sessionId).once("value").then(s => {
+    const d = s.val();
+    if (d && d.status === "IDLE") {
+      db.ref("sessions/" + sessionId).update({ vehicle: vehicleSelect.value });
+    }
+  });
+});
+
+// ── ROLE CHANGE ──
+roleEl.addEventListener("change", () => {
+  areaA.style.display = roleEl.value === "A" ? "block" : "none";
+  areaB.style.display = roleEl.value === "B" ? "block" : "none";
+  distanceEl.disabled  = roleEl.value === "B";
+  vehicleSelect.disabled = roleEl.value === "B";
+  updateStartState();
+});
+roleEl.dispatchEvent(new Event("change"));
+
+// ── CREATE SESSION (Petugas A) ──
+function createSession() {
+  const dist = Number(distanceEl.value);
+  if (!dist || dist <= 0) return alert("Jarak tidak valid");
+  if (!vehicleSelect.value) return alert("Pilih jenis kendaraan");
+  if (!surveyorInput.value.trim()) return alert("Nama surveyor harus diisi");
+
+  sessionId = Math.random().toString(36).substr(2, 6).toUpperCase();
+
+  db.ref("sessions/" + sessionId).set({
+    distance: dist,
+    vehicle:  vehicleSelect.value,
+    status:   "IDLE",
+    start_time: 0,
+    stop_time: 0
+  });
+
+  const codeEl = document.getElementById("sessionCode");
+  codeEl.textContent = "SESSION ID: " + sessionId;
+  codeEl.style.display = "block";
+
+  activate();
+}
+
+// ── JOIN SESSION (Petugas B) ──
+function joinSession() {
+  const id = document.getElementById("joinInput").value.trim().toUpperCase();
+  if (!id) return alert("Masukkan Session ID");
+
+  db.ref("sessions/" + id).once("value").then(s => {
+    if (!s.exists()) return alert("Session tidak ditemukan");
+    sessionId = id;
+    activate();
+  });
+}
+
+// ── ACTIVATE — pasang listener Firebase ──
+function activate() {
+  controlBar.classList.add("active");
+  stopwatch.classList.remove("locked");
+  updateStartState();
+
+  if (sessionListener) {
+    db.ref("sessions/" + sessionId).off("value", sessionListener);
+  }
+
+  sessionListener = snap => {
+    const d = snap.val();
+    if (!d) return;
+
+    // Sync vehicle display
+    vehicleInfo.textContent = d.vehicle ? "Kendaraan: " + d.vehicle : "Menunggu kendaraan dari Petugas A";
+
+    // Sync vehicle selector untuk Petugas A saat IDLE
+    if (roleEl.value === "A" && d.status === "IDLE" && d.vehicle) {
+      vehicleSelect.value = d.vehicle;
+    }
+
+    // ── IDLE ──
+    if (d.status === "IDLE") {
+      clearInterval(timer); timer = null; timerRunning = false; localStartTime = 0;
+      lastStartTimeSeen = 0;
+
+      timeEl.textContent  = "0.000";
+      speedEl.textContent = "— km/jam";
+      setStatus("IDLE");
+
+      btnStart.disabled = roleEl.value !== "A" || !surveyorInput.value.trim() || !vehicleSelect.value;
+      btnStop.disabled  = true;
+
+      distanceEl.disabled    = roleEl.value === "B";
+      vehicleSelect.disabled = roleEl.value === "B";
+    }
+
+    // ── RUNNING ──
+    else if (d.status === "RUNNING") {
+      distanceEl.disabled    = true;
+      vehicleSelect.disabled = true;
+      btnStart.disabled = true;
+      btnStop.disabled  = roleEl.value !== "B";
+      setStatus("RUNNING");
+
+      // Timer lokal hanya untuk Petugas B (A sudah punya timer lokal di start())
+      if (roleEl.value === "B" && d.start_time > 0 && d.start_time !== lastStartTimeSeen) {
+        lastStartTimeSeen = d.start_time;
+        clearInterval(timer);
+        localStartTime = d.start_time;
+        timer = setInterval(() => {
+          timeEl.textContent = Math.max(0, (Date.now() - localStartTime) / 1000).toFixed(3);
+        }, 50);
+      }
+    }
+
+    // ── STOPPED ──
+    else if (d.status === "STOPPED") {
+      clearInterval(timer); timer = null; timerRunning = false; localStartTime = 0;
+      distanceEl.disabled = true;
+      lastStartTimeSeen = 0;
+
+      const dur = d.stop_time - d.start_time;
+      timeEl.textContent  = (dur / 1000).toFixed(3);
+      speedEl.textContent = ((d.distance / 1000) / (dur / 3600000)).toFixed(2) + " km/jam";
+      setStatus("STOPPED");
+
+      btnStart.disabled = true;
+      btnStop.disabled  = true;
+    }
+  };
+
+  db.ref("sessions/" + sessionId).on("value", sessionListener);
+}
+
+// ── START (Petugas A) ──
+function start() {
+  if (roleEl.value !== "A") return;
+
+  const nama      = surveyorInput.value.trim();
+  const kendaraan = vehicleSelect.value;
+  const dist      = Number(distanceEl.value);
+
+  if (!nama)      return alert("Nama surveyor harus diisi");
+  if (!kendaraan) return alert("Pilih jenis kendaraan");
+  if (!dist || dist <= 0) return alert("Jarak tidak valid");
+  if (!sessionId) return alert("Buat session terlebih dahulu");
+
+  const startTime = Date.now();
+  localStartTime  = startTime;
+  timerRunning    = true;
+
+  clearInterval(timer);
+  timer = setInterval(() => {
+    timeEl.textContent = ((Date.now() - localStartTime) / 1000).toFixed(3);
+  }, 16);
+
+  db.ref("sessions/" + sessionId).update({
+    status:     "RUNNING",
+    start_time: startTime,
+    surveyor:   nama,
+    vehicle:    kendaraan,
+    distance:   dist
+  });
+}
+
+// ── STOP (Petugas B) ──
+function stop() {
+  if (roleEl.value !== "B") return alert("STOP hanya untuk Petugas B");
+
+  const stopTime = Date.now();
+  const recordId = sessionId + "-" + stopTime;
+  lastRecordId   = recordId;
+
+  db.ref("sessions/" + sessionId).once("value").then(s => {
+    const d = s.val();
+    if (!d || !d.start_time) return;
+
+    const durMs  = stopTime - d.start_time;
+    const durSec = (durMs / 1000).toFixed(3);
+    const speed  = ((d.distance / 1000) / (durMs / 3600000)).toFixed(2);
+    const now    = new Date();
+
+    const payload = {
+      tanggal:   now.toLocaleDateString("id-ID"),
+      jam:       now.toLocaleTimeString("id-ID"),
+      sessionId: sessionId,
+      surveyor:  d.surveyor || "",
+      vehicle:   d.vehicle,
+      distance:  d.distance,
+      duration:  durSec,
+      speed:     speed,
+      recordId:  recordId
+    };
+
+    navigator.sendBeacon(SHEET_API_URL, new URLSearchParams(payload));
+
+    db.ref("sessions/" + sessionId).update({
+      status:    "STOPPED",
+      stop_time: stopTime
+    });
+  });
+}
+
+// ── RESET (Petugas A) ──
+function resetSession() {
+  if (roleEl.value !== "A") return alert("Reset hanya untuk Petugas A");
+  if (!sessionId) return;
+
+  clearInterval(timer); timer = null; timerRunning = false; localStartTime = 0;
+
+  db.ref("sessions/" + sessionId).update({
+    status:     "IDLE",
+    start_time: 0,
+    stop_time:  0
+  });
+}
+
+// ── CANCEL DATA TERAKHIR ──
+function cancelLast() {
+  if (!lastRecordId) return alert("Tidak ada data yang bisa dibatalkan");
+
+  const ok = confirm("Batalkan data terakhir?\nID: " + lastRecordId);
+  if (!ok) return;
+
+  // Kirim cancel ke Sheet
+  navigator.sendBeacon(SHEET_API_URL, new URLSearchParams({
+    action:   "cancel",
+    recordId: lastRecordId
+  }));
+
+  // ✅ FIX: Reset Firebase ke IDLE agar session tidak macet
+  if (sessionId) {
+    db.ref("sessions/" + sessionId).update({
+      status:     "IDLE",
+      start_time: 0,
+      stop_time:  0
+    });
+  }
+
+  alert("Data dibatalkan. Session direset ke IDLE.");
+  lastRecordId = null;
+}
+</script>
+</body>
+</html>
