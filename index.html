@@ -44,6 +44,10 @@ button:disabled{opacity:.25;pointer-events:none}
 .locked{opacity:.3;pointer-events:none}
 .divider{border:none;border-top:1px solid #1a1a1a;margin:12px 0}
 .app-credit{text-align:center;padding:20px 0 10px;font-size:9px;color:#222;letter-spacing:.2em}
+
+/* Toast notif kecil */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);background:#1a3028;color:#6ee7b7;border:1px solid #6ee7b7;border-radius:4px;padding:8px 18px;font-size:11px;letter-spacing:.1em;opacity:0;transition:all .3s;pointer-events:none;z-index:99}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
@@ -106,10 +110,13 @@ button:disabled{opacity:.25;pointer-events:none}
   <div class="app-credit">WEB created by N4yr4</div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script>
 // ── CONFIG ──
+// GANTI dengan URL Apps Script kamu
 const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbxXxGzlWxo-uLR5pSIXy6QGCPOBhC3yVLFcY1ue5uVplgazhm7BXMge5jwkORsRhSw/exec";
 
 firebase.initializeApp({
@@ -142,6 +149,14 @@ const statusText    = document.getElementById("statusText");
 const statusDot     = document.getElementById("statusDot");
 const surveyorInput = document.getElementById("surveyor");
 const distanceEl    = document.getElementById("distance");
+
+// ── TOAST ──
+function showToast(msg, duration = 2500) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), duration);
+}
 
 // ── LOAD SAVED SURVEYOR ──
 surveyorInput.value = localStorage.getItem("surveyor") || "";
@@ -189,8 +204,8 @@ roleEl.dispatchEvent(new Event("change"));
 // ── CREATE SESSION ──
 function createSession() {
   const dist = Number(distanceEl.value);
-  if (!dist || dist <= 0)         return alert("Jarak tidak valid");
-  if (!vehicleSelect.value)       return alert("Pilih jenis kendaraan");
+  if (!dist || dist <= 0)          return alert("Jarak tidak valid");
+  if (!vehicleSelect.value)        return alert("Pilih jenis kendaraan");
   if (!surveyorInput.value.trim()) return alert("Nama surveyor harus diisi");
 
   sessionId = Math.random().toString(36).substr(2, 6).toUpperCase();
@@ -253,11 +268,15 @@ function activate() {
       speedEl.textContent = "— km/jam";
       setStatus("IDLE");
 
-      // Petugas A bisa START lagi
+      // Petugas A langsung bisa START lagi
       btnStart.disabled      = roleEl.value !== "A" || !surveyorInput.value.trim() || !vehicleSelect.value;
       btnStop.disabled       = true;
       distanceEl.disabled    = roleEl.value === "B";
       vehicleSelect.disabled = roleEl.value === "B";
+
+      if (roleEl.value === "A") {
+        showToast("✓ Siap pengukuran berikutnya");
+      }
     }
 
     // ── RUNNING ──
@@ -293,13 +312,12 @@ function activate() {
       btnStart.disabled = true;
       btnStop.disabled  = true;
 
-      // ── AUTO RESET KE IDLE setelah 3 detik ──
-      // Supaya Petugas A bisa langsung START lagi tanpa pencet Reset manual
+      // ── AUTO RESET ke IDLE setelah 2 detik ──
+      // Petugas A langsung bisa START lagi tanpa pencet reset manual
       setTimeout(() => {
         if (!sessionId) return;
         db.ref("sessions/" + sessionId).once("value").then(s2 => {
           const d2 = s2.val();
-          // Hanya reset kalau masih STOPPED (belum diubah orang lain)
           if (d2 && d2.status === "STOPPED") {
             db.ref("sessions/" + sessionId).update({
               status:     "IDLE",
@@ -308,7 +326,7 @@ function activate() {
             });
           }
         });
-      }, 3000);
+      }, 2000); // 2 detik cukup untuk lihat hasil, lalu siap lagi
     }
   };
 
@@ -323,10 +341,10 @@ function start() {
   const kendaraan = vehicleSelect.value;
   const dist      = Number(distanceEl.value);
 
-  if (!nama)           return alert("Nama surveyor harus diisi");
-  if (!kendaraan)      return alert("Pilih jenis kendaraan");
+  if (!nama)            return alert("Nama surveyor harus diisi");
+  if (!kendaraan)       return alert("Pilih jenis kendaraan");
   if (!dist || dist<=0) return alert("Jarak tidak valid");
-  if (!sessionId)      return alert("Buat session terlebih dahulu");
+  if (!sessionId)       return alert("Buat session terlebih dahulu");
 
   const startTime = Date.now();
   localStartTime  = startTime;
@@ -365,8 +383,9 @@ function stop() {
     const speed  = ((d.distance / 1000) / (durMs / 3600000)).toFixed(2);
     const now    = new Date();
 
-    // ── KIRIM KE GOOGLE SHEET via fetch (lebih reliable dari sendBeacon) ──
-    const payload = new URLSearchParams({
+    // ── KIRIM KE GOOGLE SHEET via GET (lebih compatible dengan Apps Script) ──
+    // GET request menghindari CORS preflight yang sering gagal di Apps Script
+    const params = new URLSearchParams({
       tanggal:   now.toLocaleDateString("id-ID"),
       jam:       now.toLocaleTimeString("id-ID"),
       sessionId: sessionId,
@@ -378,21 +397,31 @@ function stop() {
       recordId:  recordId
     });
 
+    // Coba kirim via GET dulu (Apps Script doGet lebih mudah dikonfigurasi)
+    fetch(SHEET_API_URL + "?" + params.toString(), {
+      method: "GET",
+      mode:   "no-cors"
+    }).catch(err => console.warn("Sheet GET error:", err));
+
+    // Sekaligus kirim POST sebagai backup
     fetch(SHEET_API_URL, {
       method: "POST",
       mode:   "no-cors",
-      body:   payload
-    }).catch(err => console.error("Sheet error:", err));
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body:   params.toString()
+    }).catch(err => console.warn("Sheet POST error:", err));
 
     // Update Firebase → trigger STOPPED di semua perangkat
     db.ref("sessions/" + sessionId).update({
       status:    "STOPPED",
       stop_time: stopTime
     });
+
+    showToast("✓ Data terkirim — " + speed + " km/jam");
   });
 }
 
-// ── RESET MANUAL (Petugas A) ──
+// ── RESET MANUAL ──
 function resetSession() {
   if (roleEl.value !== "A") return alert("Reset hanya untuk Petugas A");
   if (!sessionId) return;
@@ -411,13 +440,20 @@ function cancelLast() {
   if (!lastRecordId) return alert("Tidak ada data yang bisa dibatalkan");
   if (!confirm("Batalkan data terakhir?\nID: " + lastRecordId)) return;
 
+  const params = new URLSearchParams({ action: "cancel", recordId: lastRecordId });
+
+  fetch(SHEET_API_URL + "?" + params.toString(), {
+    method: "GET",
+    mode:   "no-cors"
+  }).catch(err => console.warn("Cancel GET error:", err));
+
   fetch(SHEET_API_URL, {
     method: "POST",
     mode:   "no-cors",
-    body:   new URLSearchParams({ action: "cancel", recordId: lastRecordId })
-  }).catch(err => console.error("Cancel error:", err));
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body:   params.toString()
+  }).catch(err => console.warn("Cancel POST error:", err));
 
-  // Reset Firebase ke IDLE
   if (sessionId) {
     db.ref("sessions/" + sessionId).update({
       status:     "IDLE",
@@ -426,10 +462,9 @@ function cancelLast() {
     });
   }
 
-  alert("Data dibatalkan.");
+  showToast("✗ Data dibatalkan");
   lastRecordId = null;
 }
 </script>
-<div class="app-credit">WEB created by N4yr4</div>
 </body>
 </html>
